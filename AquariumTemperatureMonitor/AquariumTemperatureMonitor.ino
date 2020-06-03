@@ -1,6 +1,3 @@
-// https://create.arduino.cc/projecthub/TheGadgetBoy/ds18b20-digital-temperature-sensor-and-arduino-9cc806
-/********************************************************************/
-// First we include the libraries
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -9,17 +6,10 @@
 #include <Wire.h>
 
 /********************************************************************/
-// Data wire is plugged into pin 2 on the Arduino
-#define ONE_WIRE_BUS 3
-
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 32 // OLED display height, in pixels
-#define OLED_RESET     9 // Reset pin # (or -1 if sharing Arduino reset pin). Use LED_BUILTIN for NodeMCU applications!!
-
-/********************************************************************/
 // Setup a oneWire instance to communicate with any OneWire devices
 // (not just Maxim/Dallas temperature ICs)
-OneWire oneWire(ONE_WIRE_BUS);
+const uint8_t oneWireBusPin = 3; // Data wire is plugged into pin 3 on the Arduino
+OneWire oneWire(oneWireBusPin);
 
 /********************************************************************/
 // Pass our oneWire reference to Dallas Temperature.
@@ -29,28 +19,31 @@ DeviceAddress addresses[addressLength];
 
 /********************************************************************/
 // Setup screen
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+const uint8_t screenWidth = 128; // OLED display width, in pixels
+const uint8_t screenHeight = 32; // OLED display height, in pixels
+const uint8_t oledReset = 9; // Reset pin # (or -1 if sharing Arduino reset pin). Use LED_BUILTIN for NodeMCU applications!!
+Adafruit_SSD1306 display(screenWidth, screenHeight, &Wire, oledReset);
 const uint8_t bufferLength = 50;
 char textBuffer[bufferLength];
 
+// Function declarations
 void setupScreen();
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0, const uint8_t textSize = 1);
 
 void setup(void) {  
-  // start serial port
-  Serial.begin(115200);
-  Serial.println("Dallas Temperature IC Control Library Demo");
-
   setupScreen();
   
   // Start up the library
   sensors.begin();
-  char buff[50];
-  memset(buff, 50, 0);
-  sprintf(buff, "DS18 Devices: %d, total devices: %d", sensors.getDS18Count(), sensors.getDeviceCount());
-  Serial.println(buff);
+  
+  display.clearDisplay();
+  char buff[bufferLength];
+  memset(buff, bufferLength, 0);
+  sprintf(buff, "DS18 Devices: %d\nTotal devices: %d", sensors.getDS18Count(), sensors.getDeviceCount());
+  writeToScreen(buff);
+  display.display();
 
-  delay(500);
+  delay(2000);
 
   for(uint8_t i = 0; i < addressLength; i++) {
     sensors.getAddress(addresses[i], i);
@@ -58,18 +51,14 @@ void setup(void) {
 }
 
 void loop(void) {
-  // call sensors.requestTemperatures() to issue a global temperature
-  // request to all devices on the bus
+  // Send the command to all sensors on the bus to get temperature readings.
+  sensors.requestTemperatures(); 
   
-  /********************************************************************/
-//  Serial.print(" Requesting temperatures...");
-  sensors.requestTemperatures(); // Send the command to get temperature readings
-//  Serial.println("DONE");
-  
-  /********************************************************************/
+  // Once complete, get the actual temperatures in Celsius.
   float temperature1 = sensors.getTempC(addresses[0]);
   float temperature2 = sensors.getTempC(addresses[1]);
 
+  // Present on the OLED display.
   display.clearDisplay();
   memset(textBuffer, bufferLength, 0);
   sprintf(textBuffer, 
@@ -91,8 +80,14 @@ void loop(void) {
 
 void setupScreen() {
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Don't proceed, loop forever
+    pinMode(13, OUTPUT);
+    for(;;) {
+      // Don't proceed, loop forever
+      digitalWrite(13, HIGH);
+      delay(500);
+      digitalWrite(13, LOW);
+      delay(500);
+    }
   }
 
   display.clearDisplay();
@@ -100,7 +95,7 @@ void setupScreen() {
   // Draw a single pixel in white
   display.drawPixel(10, 10, WHITE);
   display.display();
-  delay(2000); // Pause for 2 seconds
+  delay(1000); // Pause for 2 seconds
   
   // Clear the buffer
   display.clearDisplay();
