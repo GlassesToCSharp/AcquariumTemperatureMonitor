@@ -77,12 +77,13 @@ void loop(void) {
 
 void setupScreen() {
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
-    pinMode(13, OUTPUT);
+    const uint8_t ledPin = 13;
+    pinMode(ledPin, OUTPUT);
     for (;;) {
       // Don't proceed, loop forever
-      digitalWrite(13, HIGH);
+      digitalWrite(ledPin, HIGH);
       delay(500);
-      digitalWrite(13, LOW);
+      digitalWrite(ledPin, LOW);
       delay(500);
     }
   }
