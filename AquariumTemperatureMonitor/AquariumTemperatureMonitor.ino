@@ -1,5 +1,6 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <LowPower.h>
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -71,6 +72,7 @@ void setup(void) {
 }
 
 void loop(void) {
+  LowPower.idle(SLEEP_FOREVER, ADC_OFF, TIMER2_OFF, TIMER1_ON, TIMER0_OFF, SPI_OFF, USART0_OFF, TWI_ON);
 }
 
 void setupScreen() {
