@@ -28,14 +28,16 @@ char textBuffer[bufferLength];
 
 // Function declarations
 void setupScreen();
-void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0, const uint8_t textSize = 1);
+void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
+void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0);
 
 void setup(void) {  
   setupScreen();
   
   // Start up the library
   sensors.begin();
-  
+
+  // Display the total number of devices and temperature sensors connected.
   display.clearDisplay();
   char buff[bufferLength];
   memset(buff, bufferLength, 0);
@@ -45,9 +47,17 @@ void setup(void) {
 
   delay(2000);
 
+  // For each device, get its address.
   for(uint8_t i = 0; i < addressLength; i++) {
     sensors.getAddress(addresses[i], i);
   }
+
+  // Display the titles for the readings. These will never change, so this code can stay here.
+  display.clearDisplay();
+  memset(textBuffer, bufferLength, 0);
+  sprintf(textBuffer, "Temp1:\nTemp2:");
+  writeToScreen(textBuffer);
+  display.display();
 }
 
 void loop(void) {
@@ -59,21 +69,8 @@ void loop(void) {
   float temperature2 = sensors.getTempC(addresses[1]);
 
   // Present on the OLED display.
-  display.clearDisplay();
-  memset(textBuffer, bufferLength, 0);
-  sprintf(textBuffer, 
-    "Temp1: %d.%02u C",
-    (int)temperature1,
-    (int)((long)(temperature1 * 100) - (long)temperature1 * 100));
-  writeToScreen(textBuffer);
-  memset(textBuffer, bufferLength, 0);
-  sprintf(textBuffer, 
-    "Temp2: %d.%02u C",
-    (int)temperature2,
-    (int)((long)(temperature2 * 100) - (long)temperature2 * 100));
-  writeToScreen(textBuffer, 0, 8);
-
-  display.display();
+  displaySensorData(temperature1, 42, 0);
+  displaySensorData(temperature2, 42, 8);
   
   delay(1000);
 }
@@ -101,9 +98,26 @@ void setupScreen() {
   display.clearDisplay();
 }
 
-void writeToScreen(const char* text, const uint8_t x, const uint8_t y, const uint8_t textSize) {
+void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y) {
+  memset(textBuffer, bufferLength, 0);
+  if ((int)sensorData != DEVICE_DISCONNECTED_C) {
+    sprintf(textBuffer, 
+      "%d.%02u C  ", // Trailing space to overwrite any text left over from a disconnected sensor
+      (int)sensorData,
+      (int)((long)(sensorData * 100) - (long)sensorData * 100));
+  } else {
+    sprintf(textBuffer, "No sensor");
+  }
+
+  // Display the text buffer
+  writeToScreen(textBuffer, x, y);
+  display.display();
+}
+
+void writeToScreen(const char* text, const uint8_t x, const uint8_t y) {
+  const uint8_t textSize = 1;
   display.setTextSize(textSize);      // 1 = Normal 1:1 pixel scale
-  display.setTextColor(WHITE);        // Draw white text
+  display.setTextColor(WHITE, BLACK);        // Draw white text on black background
   display.setCursor(x, y);
   for(uint8_t i = 0; i < bufferLength; i++) {
     if (text[i] == '\0') {
