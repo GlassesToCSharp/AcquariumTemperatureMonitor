@@ -5,6 +5,8 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 
+const uint16_t updateFrequency = 1000; // Update every 1s (1000ms).
+
 /********************************************************************/
 // Setup a oneWire instance to communicate with any OneWire devices
 // (not just Maxim/Dallas temperature ICs)
@@ -61,6 +63,7 @@ void setup(void) {
 }
 
 void loop(void) {
+  uint32_t startTime = millis();
   // Send the command to all sensors on the bus to get temperature readings.
   sensors.requestTemperatures(); 
   
@@ -72,7 +75,7 @@ void loop(void) {
   displaySensorData(temperature1, 42, 0);
   displaySensorData(temperature2, 42, 8);
   
-  delay(1000);
+  while(millis() - startTime < updateFrequency);
 }
 
 void setupScreen() {
