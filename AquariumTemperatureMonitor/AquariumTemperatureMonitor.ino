@@ -6,8 +6,16 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 
+// The external interrupt is a future implementation, which does not need to be included
+// at this point (there are no suitable features for it yet). The idea is to have a button
+// to scroll past different screens (Celsius, Fahrenheit, graph, etc). This is not a
+// priority, but it is a work in progress.
+//#define INCLUDE_INTERRUPTS
+
 const uint16_t updateFrequency = 1000; // Update every 1s (1000ms).
+#ifdef INCLUDE_INTERRUPTS
 const uint8_t debounceDelay = 50; // Debounce delay in ms.
+#endif
 
 /********************************************************************/
 // Setup a oneWire instance to communicate with any OneWire devices
@@ -39,7 +47,9 @@ volatile float currentTemperature2 = 0.0;
 void setupScreen();
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
 void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0);
+#ifdef INCLUDE_INTERRUPTS
 void setupExternalInterrupt();
+#endif
 void setupTimerInterrupts();
 
 void setup(void) {
@@ -72,7 +82,9 @@ void setup(void) {
   display.display();
 
   cli(); // Stop any other interrupts.
+  #ifdef INCLUDE_INTERRUPTS
   setupExternalInterrupt();
+  #endif
   setupTimerInterrupts();
   sei(); // Enable interrupts
 }
@@ -170,7 +182,7 @@ void setupTimerInterrupts() {
   // Enable the timer interrupt in the Timer/Counter Interrupt Mask Register.
   TIMSK1 |= (1 << OCIE1A); // Enable the timer on the CMR for Register A.
 
-
+  #ifdef INCLUDE_INTERRUPTS
   //------------------
   // Set up Timer 2 for 1kHz interrupt.
 
@@ -191,6 +203,7 @@ void setupTimerInterrupts() {
 
   // Enable the timer interrupt in the Timer/Counter Interrupt Mask Register.
   //  TIMSK2 |= (1 << OCIE2A); // Enable the timer on the CMR for Register A.
+  #endif
 }
 
 // Interrupt Service Routine for Timer 1.
@@ -216,6 +229,7 @@ ISR(TIMER1_COMPA_vect) {
   }
 }
 
+#ifdef INCLUDE_INTERRUPTS
 // Interrupt Service Routine for Timer 2.
 // Timer 2 Compare Match A.
 // On Compare Match A == CMR A.
@@ -276,3 +290,4 @@ ISR(INT0_vect) {
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, !digitalRead(ledPin));
 }
+#endif
