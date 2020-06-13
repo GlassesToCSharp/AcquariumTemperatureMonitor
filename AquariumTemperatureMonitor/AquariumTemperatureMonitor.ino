@@ -20,7 +20,7 @@ const uint8_t debounceDelay = 50; // Debounce delay in ms.
 /********************************************************************/
 // Setup a oneWire instance to communicate with any OneWire devices
 // (not just Maxim/Dallas temperature ICs)
-const uint8_t oneWireBusPin = 3; // Data wire is plugged into pin 3 on the Arduino
+const uint8_t oneWireBusPin = 4; // Data wire is plugged into pin 4 on the Arduino
 OneWire oneWire(oneWireBusPin);
 
 /********************************************************************/
