@@ -1,9 +1,9 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <LowPower.h>
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include "temperature.h"
 #include <Wire.h>
 
 // The external interrupt is a future implementation, which does not need to be included
@@ -38,10 +38,13 @@ Adafruit_SSD1306 display(screenWidth, screenHeight, &Wire, oledReset);
 
 const uint8_t bufferLength = 50;
 char textBuffer[bufferLength];
-float temperature1 = 0.0;
-float temperature2 = 0.0;
-volatile float currentTemperature1 = 0.0;
-volatile float currentTemperature2 = 0.0;
+volatile Temperature currentTemperature = {0.0, 0.0};
+volatile uint8_t historyTimerCounter = 0;
+volatile uint8_t historyCounter = 0;
+const uint8_t timeToTakeReading = 60; // Every 60 seconds story a reading.
+const uint8_t historyLength = 100;
+// New set of data every ([timeToTakeReading] * [historyLength]) seconds
+Temperature temperatureHistory[historyLength];
 
 // Function declarations
 void setupScreen();
@@ -59,6 +62,11 @@ void setup(void) {
   // Start up the sensors.
   sensors.begin();
 
+  // Clear the history.
+  for(uint8_t i = 0; i < historyLength; i++) {
+    clearTemperature(&temperatureHistory[i]);
+  }
+  
   // Display the total number of devices and temperature sensors connected.
   display.clearDisplay();
   char buff[bufferLength];
@@ -90,7 +98,17 @@ void setup(void) {
 }
 
 void loop(void) {
-  LowPower.idle(SLEEP_FOREVER, ADC_OFF, TIMER2_ON, TIMER1_ON, TIMER0_OFF, SPI_OFF, USART0_ON, TWI_ON);
+  if (historyCounter == historyLength) {
+    for(uint8_t i = 0; i < historyLength; i++) {
+      // TODO: Send to server
+//      Serial.print(temperatureHistory[i].temperature1);
+//      Serial.print(" | ");
+//      Serial.println(temperatureHistory[i].temperature2);
+      clearTemperature(&temperatureHistory[i]);
+    }
+//    Serial.println();
+    historyCounter = 0;
+  }
 }
 
 void setupScreen() {
@@ -214,18 +232,25 @@ ISR(TIMER1_COMPA_vect) {
   sensors.requestTemperatures();
 
   // Once complete, get the actual temperatures in Celsius.
-  temperature1 = sensors.getTempC(addresses[0]);
-  temperature2 = sensors.getTempC(addresses[1]);
+  float temperature1 = sensors.getTempC(addresses[0]);
+  float temperature2 = sensors.getTempC(addresses[1]);
 
   // Present readings on the OLED display.
-  if (currentTemperature1 != temperature1) {
-    currentTemperature1 = temperature1;
+  if (currentTemperature.temperature1 != temperature1) {
     displaySensorData(temperature1, 42, 0);
   }
 
-  if (currentTemperature2 != temperature2) {
-    currentTemperature2 = temperature2;
+  if (currentTemperature.temperature2 != temperature2) {
     displaySensorData(temperature2, 42, 8);
+  }
+
+  setTemperatures(&currentTemperature, &temperature1, &temperature2);
+
+  historyTimerCounter++;
+  if (historyTimerCounter == timeToTakeReading) {
+    historyTimerCounter = 0;
+    setTemperatures(&temperatureHistory[historyCounter], &temperature1, &temperature2);
+    historyCounter++;
   }
 }
 
