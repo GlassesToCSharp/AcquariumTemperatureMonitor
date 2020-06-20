@@ -16,6 +16,11 @@ void setTemperatures(volatile Temperature * temperature, const float* t1, const 
   temperature->temperature2 = *t2;
 }
 
+void setTemperatures(volatile Temperature * dest, const volatile Temperature * src) {
+  dest->temperature1 = src->temperature1;
+  dest->temperature2 = src->temperature2;
+}
+
 void clearTemperature(Temperature * temperature) {
   temperature->temperature1 = 0;
   temperature->temperature2 = 0;
