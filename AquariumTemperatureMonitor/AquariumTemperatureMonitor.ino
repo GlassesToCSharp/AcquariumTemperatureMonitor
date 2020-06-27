@@ -1,11 +1,12 @@
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <Ticker.h>
-
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include "temperature.h"
+#include <DallasTemperature.h>
+#include <OneWire.h>
+#include <Ticker.h>
 #include <Wire.h>
+
+#include "temperature.h"
+#include "web_handler.h"
 
 const uint16_t updateFrequency = 1000; // Update every 1s (1000ms).
 
@@ -35,15 +36,19 @@ Adafruit_SSD1306 display(screenWidth, screenHeight, &Wire, oledReset);
 
 const uint8_t bufferLength = 50;
 char textBuffer[bufferLength];
-volatile Temperature currentTemperature = {0.0, 0.0};
+volatile Temperature currentTemperature = {0.0, 0.0, 0};
 volatile uint8_t historyTimerCounter = 0;
 volatile uint8_t historyCounter = 0;
 const uint8_t timeToTakeReading = 3; // Every 60 seconds story a reading.
 const uint8_t historyLength = 2;
 // New set of data every ([timeToTakeReading] * [historyLength]) seconds
 Temperature temperatureHistory[historyLength];
+volatile uint32_t timestamp = 1593077684;
 
 // Function declarations
+void connectingToWifi(void);
+void connectionSuccess(void);
+void connectionFailed(void);
 void setupScreen();
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
 void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0, bool callDisplay = true);
@@ -54,40 +59,32 @@ void setup(void) {
   // Setup the OLED display screen.
   setupScreen();
 
+  // Connect to Wifi
+  connectToWifi(connectingToWifi, connectionSuccess, connectionFailed);
+
   // Start up the sensors.
   sensors.begin();
 
   // For each device, get its address.
   for (uint8_t i = 0; i < addressLength; i++) {
     sensors.getAddress(addresses[i], i);
-    Serial.print("Address: ");
-    uint8_t * address = addresses[i];
-    for (uint8_t j = 0; j < 8; j++) {
-      Serial.print(*(address + i));
-      Serial.print(" ");
-    }
-    Serial.println();
   }
-  
+
   // Don't block to wait for conversion.
   sensors.setWaitForConversion(false);
 
   // Clear the history.
-  for(uint8_t i = 0; i < historyLength; i++) {
+  for (uint8_t i = 0; i < historyLength; i++) {
     clearTemperature(&temperatureHistory[i]);
   }
-  
+
   // Display the total number of devices and temperature sensors connected.
   display.clearDisplay();
   char buff[bufferLength];
   memset(buff, bufferLength, 0);
   sprintf(buff, "DS18 Devices: %d\nTotal devices: %d", sensors.getDS18Count(), sensors.getDeviceCount());
   writeToScreen(buff);
-  Serial.println(buff);
   display.display();
-//while(1){
-//  yield();
-//}
 
   delay(2000);
 
@@ -107,9 +104,9 @@ void loop(void) {
     displaySensorData(currentTemperature.temperature2, 42, 8);
     updateDisplayData = false;
   }
-    
+
   if (historyCounter == historyLength) {
-    for(uint8_t i = 0; i < historyLength; i++) {
+    for (uint8_t i = 0; i < historyLength; i++) {
       // TODO: Send to server
       Serial.print(temperatureHistory[i].temperature1);
       Serial.print(" | ");
@@ -119,6 +116,42 @@ void loop(void) {
     Serial.println();
     historyCounter = 0;
   }
+}
+
+
+void connectingToWifi(void) {
+  static uint8_t loadingIndex = 0;
+  const uint8_t loadingCharactersCapacity = 4;
+  const uint8_t loadingCharacters[4] = {'|', '/', '-', '\\' };
+  display.clearDisplay();
+  memset(textBuffer, bufferLength, 0);
+  sprintf(textBuffer, "Connecting to\nWiFi... %c", loadingCharacters[loadingIndex]);
+  writeToScreen(textBuffer);
+  display.display();
+
+  loadingIndex++;
+  if (loadingIndex == loadingCharactersCapacity) {
+    loadingIndex = 0;
+  }
+}
+
+void connectionSuccess(void) {
+  display.clearDisplay();
+  memset(textBuffer, bufferLength, 0);
+  sprintf(textBuffer, "Connected to Wifi\nsuccessfully!");
+  writeToScreen(textBuffer);
+  display.display();
+
+  // Wait here to show the message on the display.
+  delay(2000);
+}
+
+void connectionFailed(void) {
+  display.clearDisplay();
+  memset(textBuffer, bufferLength, 0);
+  sprintf(textBuffer, "Failed to connect.\nCheck WiFi status and\nrestart the device.");
+  writeToScreen(textBuffer);
+  display.display();
 }
 
 void setupScreen() {
@@ -205,8 +238,9 @@ void timerIsr() {
     if ((currentTemperature.temperature1 != tempSensor1) || (currentTemperature.temperature2 != tempSensor2)) {
       updateDisplayData = true;
     }
-  
+
     setTemperatures(&currentTemperature, &tempSensor1, &tempSensor2);
+    setTimestamp(&currentTemperature, timestamp);
 
     temperatureRequested = false;
   }
@@ -217,4 +251,6 @@ void timerIsr() {
     setTemperatures(&temperatureHistory[historyCounter], &currentTemperature);
     historyCounter++;
   }
+
+  timestamp++;
 }
