@@ -26,7 +26,7 @@ DeviceAddress addresses[addressLength];
 // Timer setup for NodeMCU
 Ticker timer;
 volatile bool updateDisplayData = false;
-bool requestNewData = true;
+volatile bool requestNewData = true;
 
 /********************************************************************/
 // Setup screen
@@ -47,12 +47,13 @@ Temperature temperatureHistory[historyLength];
 volatile uint32_t timestamp = 1593077684;
 
 // Function declarations
-void connectingToWifi(void);
-void connectionSuccess(void);
-void connectionFailed(void);
+void connectingToWifi();
+void connectionSuccess();
+void connectionFailed();
 void setupScreen();
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
 void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0, bool callDisplay = true);
+void showTemperatureLabels();
 void timerIsr();
 
 void setup(void) {
@@ -89,18 +90,15 @@ void setup(void) {
 
   delay(2000);
 
-  // Display the titles for the readings. These will never change, so this code can stay here.
-  display.clearDisplay();
-  memset(textBuffer, 0, bufferLength);
-  sprintf(textBuffer, "Temp1:\nTemp2:");
-  writeToScreen(textBuffer);
-  display.display();
+  // Display the titles for the readings.
+  showTemperatureLabels();
 
   timer.attach_ms(updateFrequency, timerIsr);
 }
 
 void loop(void) {
   if (updateDisplayData) {
+    showTemperatureLabels();
     displaySensorData(currentTemperature.temperature1, 42, 0, false);
     displaySensorData(currentTemperature.temperature2, 42, 8);
     updateDisplayData = false;
@@ -148,7 +146,7 @@ void loop(void) {
 }
 
 
-void connectingToWifi(void) {
+void connectingToWifi() {
   static uint8_t loadingIndex = 0;
   const uint8_t loadingCharactersCapacity = 4;
   const uint8_t loadingCharacters[4] = {'|', '/', '-', '\\' };
@@ -164,7 +162,7 @@ void connectingToWifi(void) {
   }
 }
 
-void connectionSuccess(void) {
+void connectionSuccess() {
   display.clearDisplay();
   memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Connected to Wifi\nsuccessfully!");
@@ -175,7 +173,7 @@ void connectionSuccess(void) {
   delay(2000);
 }
 
-void connectionFailed(void) {
+void connectionFailed() {
   display.clearDisplay();
   memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Failed to connect.\nCheck WiFi status and\nrestart the device.");
@@ -223,6 +221,15 @@ void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y,
   if (callDisplay) {
     display.display();
   }
+}
+
+void showTemperatureLabels() {
+  // Display the titles for the readings.
+  display.clearDisplay();
+  memset(textBuffer, 0, bufferLength);
+  sprintf(textBuffer, "Temp1:\nTemp2:");
+  writeToScreen(textBuffer);
+  display.display();
 }
 
 void writeToScreen(const char* text, const uint8_t x, const uint8_t y) {
