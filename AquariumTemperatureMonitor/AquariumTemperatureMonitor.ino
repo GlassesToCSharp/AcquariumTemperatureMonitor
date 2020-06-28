@@ -39,9 +39,9 @@ char textBuffer[bufferLength];
 volatile Temperature currentTemperature = {0.0, 0.0, 0};
 volatile uint8_t historyTimerCounter = 0;
 volatile uint8_t historyCounter = 0;
-const uint8_t timeToTakeReading = 3; // Every 60 seconds story a reading.
-const uint8_t historyLength = 2;
-// New set of data every ([timeToTakeReading] * [historyLength]) seconds
+const uint8_t timeToTakeReading = 60; // Every 60 seconds story a reading.
+const uint8_t historyLength = 100; // Store 100 readings before uploading.
+// New set of data every ([timeToTakeReading] * [historyLength]) seconds.
 Temperature temperatureHistory[historyLength];
 volatile uint32_t timestamp = 0;
 
