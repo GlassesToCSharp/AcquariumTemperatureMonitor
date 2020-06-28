@@ -26,6 +26,7 @@ DeviceAddress addresses[addressLength];
 // Timer setup for NodeMCU
 Ticker timer;
 volatile bool updateDisplayData = false;
+bool requestNewData = true;
 
 /********************************************************************/
 // Setup screen
@@ -81,7 +82,7 @@ void setup(void) {
   // Display the total number of devices and temperature sensors connected.
   display.clearDisplay();
   char buff[bufferLength];
-  memset(buff, bufferLength, 0);
+  memset(buff, 0, bufferLength);
   sprintf(buff, "DS18 Devices: %d\nTotal devices: %d", sensors.getDS18Count(), sensors.getDeviceCount());
   writeToScreen(buff);
   display.display();
@@ -90,7 +91,7 @@ void setup(void) {
 
   // Display the titles for the readings. These will never change, so this code can stay here.
   display.clearDisplay();
-  memset(textBuffer, bufferLength, 0);
+  memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Temp1:\nTemp2:");
   writeToScreen(textBuffer);
   display.display();
@@ -106,11 +107,39 @@ void loop(void) {
   }
 
   if (historyCounter == historyLength) {
+    // When sending data to the server, stop requesting data, as it seems to be
+    // causing some timing issues. The requests can be re-enabled after a
+    // server response has been received.
+
+    // Disable dta requests.
+    requestNewData = false;
+
+    // Show a message saying data is being uploaded.
+    // TODO: replace this with an icon.
+    display.clearDisplay();
+    memset(textBuffer, 0, bufferLength);
+    sprintf(textBuffer, "Uploading data...");
+    writeToScreen(textBuffer);
+    display.display();
+    
+    // Send data to server.
+    uint16_t responseCode = uploadData(temperatureHistory, historyLength);
+    if (responseCode < 200 || responseCode > 299) {
+      sprintf(textBuffer, "Failed to send\ndata: %d", responseCode);
+      writeToScreen(textBuffer);
+      display.display();
+    }
+
+    // Re-enable data requests.
+    requestNewData = true;
+
+    // Clear history.
     for (uint8_t i = 0; i < historyLength; i++) {
-      // TODO: Send to server
       Serial.print(temperatureHistory[i].temperature1);
       Serial.print(" | ");
-      Serial.println(temperatureHistory[i].temperature2);
+      Serial.print(temperatureHistory[i].temperature2);
+      Serial.print(" | ");
+      Serial.println(temperatureHistory[i].time);
       clearTemperature(&temperatureHistory[i]);
     }
     Serial.println();
@@ -124,7 +153,7 @@ void connectingToWifi(void) {
   const uint8_t loadingCharactersCapacity = 4;
   const uint8_t loadingCharacters[4] = {'|', '/', '-', '\\' };
   display.clearDisplay();
-  memset(textBuffer, bufferLength, 0);
+  memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Connecting to\nWiFi... %c", loadingCharacters[loadingIndex]);
   writeToScreen(textBuffer);
   display.display();
@@ -137,7 +166,7 @@ void connectingToWifi(void) {
 
 void connectionSuccess(void) {
   display.clearDisplay();
-  memset(textBuffer, bufferLength, 0);
+  memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Connected to Wifi\nsuccessfully!");
   writeToScreen(textBuffer);
   display.display();
@@ -148,7 +177,7 @@ void connectionSuccess(void) {
 
 void connectionFailed(void) {
   display.clearDisplay();
-  memset(textBuffer, bufferLength, 0);
+  memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Failed to connect.\nCheck WiFi status and\nrestart the device.");
   writeToScreen(textBuffer);
   display.display();
@@ -179,7 +208,7 @@ void setupScreen() {
 }
 
 void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y, bool callDisplay) {
-  memset(textBuffer, bufferLength, 0);
+  memset(textBuffer, 0, bufferLength);
   if ((int)sensorData != DEVICE_DISCONNECTED_C) {
     sprintf(textBuffer,
             "%d.%02u C  ", // Trailing space to overwrite any text left over from a disconnected sensor
@@ -212,8 +241,19 @@ void writeToScreen(const char* text, const uint8_t x, const uint8_t y) {
 
 // Interrupt Service Routine for Timer.
 void timerIsr() {
-  // Send the command to all sensors on the bus to get temperature readings.
   static bool temperatureRequested = false;
+
+  // Update the local time.
+  timestamp++;
+
+  // If the main program decides that the timer should not request data (for example,
+  // to stop interrupting uploading of data), the timer can just return. This must be
+  // done after updating the timestamp so as to keep track of time.
+  if (!requestNewData) {
+    return;
+  }
+  
+  // Send the command to all sensors on the bus to get temperature readings.
   if (!temperatureRequested) {
     sensors.requestTemperatures();
     temperatureRequested = true;
@@ -239,8 +279,7 @@ void timerIsr() {
       updateDisplayData = true;
     }
 
-    setTemperatures(&currentTemperature, &tempSensor1, &tempSensor2);
-    setTimestamp(&currentTemperature, timestamp);
+    setNewTemperature(&currentTemperature, &tempSensor1, &tempSensor2, &timestamp);
 
     temperatureRequested = false;
   }
@@ -248,9 +287,7 @@ void timerIsr() {
   historyTimerCounter++;
   if (historyTimerCounter == timeToTakeReading) {
     historyTimerCounter = 0;
-    setTemperatures(&temperatureHistory[historyCounter], &currentTemperature);
+    setNewTemperature(&temperatureHistory[historyCounter], &currentTemperature);
     historyCounter++;
   }
-
-  timestamp++;
 }

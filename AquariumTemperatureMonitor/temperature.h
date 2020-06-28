@@ -17,23 +17,22 @@ inline float getAverage(const Temperature * temperature) {
   return (temperature->temperature1 + temperature->temperature2) / 2;
 }
 
-inline void setTemperatures(volatile Temperature * temperature, const float* t1, const float* t2) {
+inline void setNewTemperature(volatile Temperature * temperature, const float* t1, const float* t2, volatile const uint32_t* time) {
   temperature->temperature1 = *t1;
   temperature->temperature2 = *t2;
+  temperature->time = *time;
 }
 
-inline void setTemperatures(volatile Temperature * dest, const volatile Temperature * src) {
+inline void setNewTemperature(volatile Temperature * dest, const volatile Temperature * src) {
   dest->temperature1 = src->temperature1;
   dest->temperature2 = src->temperature2;
-}
-
-inline void setTimestamp(volatile Temperature * dest, const volatile uint32_t timestamp) {
-  dest->time = timestamp;
+  dest->time = src->time;
 }
 
 inline void clearTemperature(Temperature * temperature) {
   temperature->temperature1 = 0;
   temperature->temperature2 = 0;
+  temperature->time = 0;
 }
 
 #endif
