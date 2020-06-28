@@ -26,7 +26,6 @@ DeviceAddress addresses[addressLength];
 // Timer setup for NodeMCU
 Ticker timer;
 volatile bool updateDisplayData = false;
-volatile bool requestNewData = true;
 
 /********************************************************************/
 // Setup screen
@@ -44,16 +43,17 @@ const uint8_t timeToTakeReading = 3; // Every 60 seconds story a reading.
 const uint8_t historyLength = 2;
 // New set of data every ([timeToTakeReading] * [historyLength]) seconds
 Temperature temperatureHistory[historyLength];
-volatile uint32_t timestamp = 1593077684;
+volatile uint32_t timestamp = 0;
 
 // Function declarations
 void connectingToWifi();
 void connectionSuccess();
 void connectionFailed();
 void setupScreen();
+void getTimeFromServer(bool displayText = false);
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
 void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0, bool callDisplay = true);
-void showTemperatureLabels();
+void showTemperatureLabels(bool withDisplay = true);
 void timerIsr();
 
 void setup(void) {
@@ -97,10 +97,12 @@ void setup(void) {
 }
 
 void loop(void) {
+  // TODO: request a timestamp update every 24hours.
+  
   if (updateDisplayData) {
-    showTemperatureLabels();
+    showTemperatureLabels(false);
     displaySensorData(currentTemperature.temperature1, 42, 0, false);
-    displaySensorData(currentTemperature.temperature2, 42, 8);
+    displaySensorData(currentTemperature.temperature2, 42, 8); // Calls display.display().
     updateDisplayData = false;
   }
 
@@ -109,8 +111,11 @@ void loop(void) {
     // causing some timing issues. The requests can be re-enabled after a
     // server response has been received.
 
-    // Disable dta requests.
-    requestNewData = false;
+    // Disable the timer for data requests.
+    if (timer.active()) {
+      timer.detach();
+    }
+    uint32_t startTime = millis();
 
     // Show a message saying data is being uploaded.
     // TODO: replace this with an icon.
@@ -128,8 +133,10 @@ void loop(void) {
       display.display();
     }
 
-    // Re-enable data requests.
-    requestNewData = true;
+    // Re-enable the timer for data requests. Also, update the timestamp with elapsed
+    // time.
+    timestamp += ((millis() - startTime) / 1000);
+    timer.attach_ms(updateFrequency, timerIsr);
 
     // Clear history.
     for (uint8_t i = 0; i < historyLength; i++) {
@@ -171,6 +178,13 @@ void connectionSuccess() {
 
   // Wait here to show the message on the display.
   delay(2000);
+
+  // Get the time from the server.
+  getTimeFromServer(true);
+
+  // Again wait here to show the message. NOTE: this might mean the timestamp
+  // will be a few seconds behind. That shouldn't pose too much of a problem.
+  delay(2000);
 }
 
 void connectionFailed() {
@@ -205,6 +219,18 @@ void setupScreen() {
   display.clearDisplay();
 }
 
+void getTimeFromServer(bool displayText) {
+  if (displayText) {
+    display.clearDisplay();
+    memset(textBuffer, 0, bufferLength);
+    sprintf(textBuffer, "Getting time from\nserver...");
+    writeToScreen(textBuffer);
+    display.display();
+  }
+  
+  updateTime(&timestamp);
+}
+
 void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y, bool callDisplay) {
   memset(textBuffer, 0, bufferLength);
   if ((int)sensorData != DEVICE_DISCONNECTED_C) {
@@ -223,13 +249,15 @@ void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y,
   }
 }
 
-void showTemperatureLabels() {
+void showTemperatureLabels(bool withDisplay) {
   // Display the titles for the readings.
   display.clearDisplay();
   memset(textBuffer, 0, bufferLength);
   sprintf(textBuffer, "Temp1:\nTemp2:");
   writeToScreen(textBuffer);
-  display.display();
+  if (withDisplay) {
+    display.display();
+  }
 }
 
 void writeToScreen(const char* text, const uint8_t x, const uint8_t y) {
@@ -252,13 +280,6 @@ void timerIsr() {
 
   // Update the local time.
   timestamp++;
-
-  // If the main program decides that the timer should not request data (for example,
-  // to stop interrupting uploading of data), the timer can just return. This must be
-  // done after updating the timestamp so as to keep track of time.
-  if (!requestNewData) {
-    return;
-  }
   
   // Send the command to all sensors on the bus to get temperature readings.
   if (!temperatureRequested) {
