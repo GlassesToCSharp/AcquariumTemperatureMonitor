@@ -40,7 +40,8 @@ volatile Temperature currentTemperature = {0.0, 0.0, 0};
 volatile uint8_t historyTimerCounter = 0;
 volatile uint8_t historyCounter = 0;
 const uint8_t timeToTakeReading = 60; // Every 60 seconds story a reading.
-const uint8_t historyLength = 100; // Store 100 readings before uploading.
+const uint8_t historyLength = 5; // Store 5 readings before uploading.
+const uint8_t maxHistoryLength = 100; // Store a maximum of 100 readings before overwriting data.
 // New set of data every ([timeToTakeReading] * [historyLength]) seconds.
 Temperature temperatureHistory[historyLength];
 volatile uint32_t timestamp = 0;
@@ -102,10 +103,10 @@ void loop(void) {
     showTemperatureLabels(false);
     displaySensorData(currentTemperature.temperature1, 42, 0, false);
     displaySensorData(currentTemperature.temperature2, 42, 8); // Calls display.display().
-    updateDisplayData = false;
+    updateDisplayData = false; // Reset the flag.
   }
 
-  if (historyCounter == historyLength) {
+  if (((historyCounter != 0) && (historyCounter % historyLength == 0)) || (historyCounter == maxHistoryLength)) {
     // When sending data to the server, stop requesting data, as it seems to be
     // causing some timing issues. The requests can be re-enabled after a
     // server response has been received.
@@ -126,23 +127,41 @@ void loop(void) {
     
     // Send data to server.
     uint16_t responseCode = uploadData(temperatureHistory, historyLength);
-    if (responseCode < 200 || responseCode > 299) {
-      sprintf(textBuffer, "Failed to send\ndata: %d", responseCode);
-      writeToScreen(textBuffer);
-      display.display();
-    }
 
     // Re-enable the timer for data requests. Also, update the timestamp with elapsed
     // time.
     timestamp += ((millis() - startTime) / 1000);
     timer.attach_ms(updateFrequency, timerIsr);
 
-    // Clear history.
-    for (uint8_t i = 0; i < historyLength; i++) {
-      clearTemperature(&temperatureHistory[i]);
+    if (responseCode >= 200 && responseCode < 300) {
+      // If the upload succeeds (20x response), clear history.
+      for (uint8_t i = 0; i < historyLength; i++) {
+        clearTemperature(&temperatureHistory[i]);
+      }
+      historyCounter = 0;
+    } else {
+      // Otherwise, if it fails, put a message on the screen.
+      sprintf(textBuffer, "Failed to send\ndata: %d", responseCode);
+      writeToScreen(textBuffer);
+      display.display();
     }
-    historyCounter = 0;
+
+    // If we are at the limit of the storage, remove the oldest data, and shuffle the
+    // other data points back. This should leave 1 space at the end of the storage
+    // array to keep updating with the latest reading. Decrement the counter to update
+    // the last value only.
+    if (historyCounter == maxHistoryLength) {
+      for (uint8_t i = 0; i < historyCounter - 1; i++) {
+        setNewTemperature(&temperatureHistory[i], &temperatureHistory[i + 1]);
+      }
+      clearTemperature(&temperatureHistory[historyCounter - 1]);
+      historyCounter--;
+    }
   }
+
+  // Delay a bit to let the above code recover.
+  // TODO: Sleep?
+  delay(100);
 }
 
 
