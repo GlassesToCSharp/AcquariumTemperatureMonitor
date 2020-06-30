@@ -57,7 +57,6 @@ void showTemperatureLabels(bool withDisplay = true);
 void timerIsr();
 
 void setup(void) {
-  Serial.begin(115200);
   // Setup the OLED display screen.
   setupScreen();
 
@@ -140,14 +139,8 @@ void loop(void) {
 
     // Clear history.
     for (uint8_t i = 0; i < historyLength; i++) {
-      Serial.print(temperatureHistory[i].temperature1);
-      Serial.print(" | ");
-      Serial.print(temperatureHistory[i].temperature2);
-      Serial.print(" | ");
-      Serial.println(temperatureHistory[i].time);
       clearTemperature(&temperatureHistory[i]);
     }
-    Serial.println();
     historyCounter = 0;
   }
 }
@@ -294,10 +287,6 @@ void timerIsr() {
   // for a complete conversion every time the ISR is triggered seems to be a good
   // workaround.
   bool conversionComplete = sensors.isConversionComplete();
-  Serial.print("Temperature requested: ");
-  Serial.print(temperatureRequested);
-  Serial.print(", conversion complete: ");
-  Serial.println(conversionComplete);
   if (temperatureRequested && conversionComplete) {
     float tempSensor1 = sensors.getTempC(addresses[0]); // Gets the values of the temperature
     float tempSensor2 = sensors.getTempC(addresses[1]); // Gets the values of the temperature

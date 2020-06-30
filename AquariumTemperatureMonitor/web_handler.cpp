@@ -43,9 +43,7 @@ const char getTimeAddress[] PROGMEM = "/currentTime?format=UNIX_S";
 const String serverAddress = "http://192.168.1.77:3000";
 
 void connectToWifi(void (*onConnecting)(void), void (*onSuccess)(void), void (*onFail)(void)) {
-  Serial.println("Connecting to Wifi");
   WiFi.begin(ssid, password);
-  Serial.println("Connecting process started");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     if (onConnecting != NULL) {
@@ -77,9 +75,6 @@ void generateJson(const Temperature * data, const uint8_t dataLength) {
 
   for (uint8_t i = 0; i < dataLength; i++) {
     const Temperature * dataPoint = data + i;
-    char buff[200];
-    sprintf(buff, "Serializing: %f, %f, %d", dataPoint->temperature1, dataPoint->temperature2, dataPoint->time);
-    Serial.println(buff);
     if (dataPoint->time == 0) {
       // On reset, the time variable will be 0. If so, there is no more data
       // in the array.
@@ -90,10 +85,6 @@ void generateJson(const Temperature * data, const uint8_t dataLength) {
     jsonObject[temperature1Key] = dataPoint->temperature1;
     jsonObject[temperature2Key] = dataPoint->temperature2;
     jsonObject[timeKey] = dataPoint->time;
-
-    memset(buff, 0, 200);
-    sprintf(buff, "Serialized: %f, %f, %d", (float)temperatureJsonDoc[temperature1Key], (float)temperatureJsonDoc[temperature2Key], (uint32_t)temperatureJsonDoc[timeKey]);
-    Serial.println(buff);
 
     jsonList.add(jsonObject);
   }
@@ -135,16 +126,12 @@ String httpGet(const String url) {
 uint16_t uploadData(const Temperature * data, const uint8_t dataLength) {
   generateJson(data, dataLength);
   char buff[200];
-  sprintf(buff, "Address: %s%s\nData: %s", serverAddress.c_str(), postDataAddress, postJsonString);
-  Serial.println(buff);
   sprintf(buff, "%s%s", serverAddress.c_str(), postDataAddress);
   return httpPost(String(buff));
 }
 
 void updateTime(volatile uint32_t * timestamp) {
   String json = httpGet(serverAddress + getTimeAddress);
-  Serial.println("Received JSON:");
-  Serial.println(json);
   if (json == "") {
     return;
   }
