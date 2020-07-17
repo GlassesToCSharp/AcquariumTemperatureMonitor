@@ -1,10 +1,12 @@
 #ifndef TEMPERATURE_H
 #define TEMPERATURE_H
 
+#include <time.h>
+
 struct Temperature {
   float temperature1;
   float temperature2;
-  uint32_t time;
+  time_t time;
 };
 
 // Re-including this file in different files causes a "multiple definitions for
@@ -17,7 +19,7 @@ inline float getAverage(const Temperature * temperature) {
   return (temperature->temperature1 + temperature->temperature2) / 2;
 }
 
-inline void setNewTemperature(volatile Temperature * temperature, const float* t1, const float* t2, volatile const uint32_t* time) {
+inline void setNewTemperature(volatile Temperature * temperature, const float* t1, const float* t2, volatile const time_t* time) {
   temperature->temperature1 = *t1;
   temperature->temperature2 = *t2;
   temperature->time = *time;

@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
+#include <time.h>
 
 #include "credentials.h"
 #include "temperature.h"
@@ -130,7 +131,7 @@ uint16_t uploadData(const Temperature * data, const uint8_t dataLength) {
   return httpPost(String(buff));
 }
 
-void updateTime(volatile uint32_t * timestamp) {
+void updateTime(volatile time_t * timestamp) {
   String json = httpGet(serverAddress + getTimeAddress);
   if (json == "") {
     return;

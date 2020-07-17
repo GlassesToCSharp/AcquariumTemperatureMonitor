@@ -3,6 +3,7 @@
 #include <DallasTemperature.h>
 #include <OneWire.h>
 #include <Ticker.h>
+#include <time.h>
 #include <Wire.h>
 
 #include "temperature.h"
@@ -44,9 +45,12 @@ const uint8_t historyLength = 5; // Store 5 readings before uploading.
 const uint8_t maxHistoryLength = 100; // Store a maximum of 100 readings before overwriting data.
 // New set of data every ([timeToTakeReading] * [historyLength]) seconds.
 Temperature temperatureHistory[historyLength];
-const uint32_t timestamp24hours = 60 * 60 * 24; // 60 secs * 60 mins * 24 hours
-volatile uint32_t timestamp = 0;
+
+const uint16_t oneHour = 3600; // 60 secs * 60 mins
+const uint32_t timestamp24hours = oneHour * 24; // 60 secs * 60 mins * 24 hours
+volatile time_t timestamp = 0;
 uint32_t lastTimestampUpdate = timestamp;
+bool updateTimestampDisplay = false;
 
 // Function declarations
 void connectingToWifi();
@@ -54,6 +58,8 @@ void connectionSuccess();
 void connectionFailed();
 void setupScreen();
 void getTimeFromServer(bool displayText = false);
+void accountForDst(time_t* src);
+bool determineDst(const time_t* src);
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
 void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0, bool callDisplay = true);
 void showTemperatureLabels(bool withDisplay = true);
@@ -105,18 +111,44 @@ void loop(void) {
     if (timer.active()) {
       timer.detach();
     }
-    
+
     // Get the time from the server.
     getTimeFromServer();
 
     timer.attach_ms(updateFrequency, timerIsr);
   }
-  
+
   if (updateDisplayData) {
     showTemperatureLabels(false);
     displaySensorData(currentTemperature.temperature1, 42, 0, false);
     displaySensorData(currentTemperature.temperature2, 42, 8); // Calls display.display().
     updateDisplayData = false; // Reset the flag.
+  }
+
+  if (updateTimestampDisplay) {
+    // Display the new time.
+    time_t localTimestamp = timestamp;
+    accountForDst(&localTimestamp);
+    struct tm* timestampConversion = gmtime(&localTimestamp);
+
+    // Prints out as 'Sun Mar 23 01:23:45 2013', but this is too long for
+    // the OLED display. Might want to omit the year, as that is least
+    // important.
+//    char* timeChars = asctime(timestampConversion);
+//    writeToScreen(timeChars, 0, 24);
+
+    // Alternatively, manually display the time on the OLED
+    memset(textBuffer, 0, bufferLength);
+    sprintf(textBuffer, "%02d:%02d:%02d  %02d/%02d/%4d",
+            timestampConversion->tm_hour,
+            timestampConversion->tm_min,
+            timestampConversion->tm_sec,
+            timestampConversion->tm_mday,
+            timestampConversion->tm_mon + 1, // Months range from 0 to 11
+            timestampConversion->tm_year + 1900); // tm_year gives the number of years since 1900, for some reason.
+    writeToScreen(textBuffer, 0, 24);
+    display.display();
+    updateTimestampDisplay = false;
   }
 
   if (((historyCounter != 0) && (historyCounter % historyLength == 0)) || (historyCounter == maxHistoryLength)) {
@@ -137,7 +169,7 @@ void loop(void) {
     sprintf(textBuffer, "Uploading data...");
     writeToScreen(textBuffer);
     display.display();
-    
+
     // Send data to server.
     uint16_t responseCode = uploadData(temperatureHistory, historyLength);
 
@@ -252,9 +284,44 @@ void getTimeFromServer(bool displayText) {
     writeToScreen(textBuffer);
     display.display();
   }
-  
+
   updateTime(&timestamp);
   lastTimestampUpdate = timestamp;
+}
+
+void accountForDst(time_t* src) {
+  if (determineDst(src)) {
+    // Add one hour if the date/time is within the DST range.
+    (*src) += oneHour;
+  }
+}
+
+bool determineDst(const time_t* src) {
+  // Process of determining if the timestamp is within the DST range and needs to be
+  // adjusted accordingly. The steps below apply to EU-based DST. Other regions may
+  // differ.
+  // Code taken from: https://stackoverflow.com/a/22761920
+  int8_t day, month, dow;
+  struct tm* convertedTimestamp = gmtime(src);
+  day = convertedTimestamp->tm_mday;
+  month = convertedTimestamp->tm_mon;
+  dow = convertedTimestamp->tm_wday;
+
+  if (month < 3 || month > 10) {
+    return false;
+  } else if (month > 3 && month < 10) {
+    return true;
+  }
+
+  int8_t previousSunday = day - dow;
+
+  if (month == 3) {
+    return previousSunday >= 25;
+  } else if (month == 10) {
+    return previousSunday < 25;
+  }
+
+  return false; // We hould never reach this, but just in case...
 }
 
 void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y, bool callDisplay) {
@@ -306,7 +373,8 @@ void timerIsr() {
 
   // Update the local time.
   timestamp++;
-  
+  updateTimestampDisplay = true;
+
   // Send the command to all sensors on the bus to get temperature readings.
   if (!temperatureRequested) {
     sensors.requestTemperatures();
