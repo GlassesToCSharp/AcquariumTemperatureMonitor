@@ -44,7 +44,9 @@ const uint8_t historyLength = 5; // Store 5 readings before uploading.
 const uint8_t maxHistoryLength = 100; // Store a maximum of 100 readings before overwriting data.
 // New set of data every ([timeToTakeReading] * [historyLength]) seconds.
 Temperature temperatureHistory[historyLength];
+const uint32_t timestamp24hours = 60 * 60 * 24; // 60 secs * 60 mins * 24 hours
 volatile uint32_t timestamp = 0;
+uint32_t lastTimestampUpdate = timestamp;
 
 // Function declarations
 void connectingToWifi();
@@ -97,7 +99,18 @@ void setup(void) {
 }
 
 void loop(void) {
-  // TODO: request a timestamp update every 24hours.
+  // Request a timestamp update every 24 hours.
+  if (timestamp - lastTimestampUpdate >= timestamp24hours) {
+    // Don't interrupt the timestamp update
+    if (timer.active()) {
+      timer.detach();
+    }
+    
+    // Get the time from the server.
+    getTimeFromServer();
+
+    timer.attach_ms(updateFrequency, timerIsr);
+  }
   
   if (updateDisplayData) {
     showTemperatureLabels(false);
@@ -241,6 +254,7 @@ void getTimeFromServer(bool displayText) {
   }
   
   updateTime(&timestamp);
+  lastTimestampUpdate = timestamp;
 }
 
 void displaySensorData(const float sensorData, const uint8_t x, const uint8_t y, bool callDisplay) {
