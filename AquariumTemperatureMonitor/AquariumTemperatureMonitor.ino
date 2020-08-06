@@ -56,6 +56,36 @@ volatile time_t timestamp = 0;
 uint32_t lastTimestampUpdate = timestamp;
 bool updateTimestampDisplay = false;
 
+const uint8_t iconHeight = 8;
+const uint8_t iconWidth = 16;
+static const unsigned char PROGMEM uploadingIconBmp[] =
+{ B00000001, B10000000,
+  B00000011, B11000000,
+  B00000111, B11100000,
+  B00001111, B11110000,
+  B00011111, B11111000,
+  B00000011, B11000000,
+  B00000011, B11000000,
+  B00000011, B11000000 };
+static const unsigned char PROGMEM failedIconBmp[] =
+{ B11000000, B00000011,
+  B00110000, B00001100,
+  B00001100, B00110000,
+  B00000011, B11000000,
+  B00000011, B11000000,
+  B00001100, B00110000,
+  B00110000, B00001100,
+  B11000000, B00000011 };
+static const unsigned char PROGMEM emptyIconBmp[] =
+{ B00000000, B00000000,
+  B00000000, B00000000,
+  B00000000, B00000000,
+  B00000000, B00000000,
+  B00000000, B00000000,
+  B00000000, B00000000,
+  B00000000, B00000000,
+  B00000000, B00000000 };
+
 // Function declarations
 void connectingToWifi();
 void connectionSuccess();
@@ -65,6 +95,7 @@ void getTimeFromServer(bool displayText = false);
 void accountForDst(time_t* src);
 bool determineDst(const time_t* src);
 void writeToScreen(const char* text, const uint8_t x = 0, const uint8_t y = 0);
+void drawIcon(const unsigned char * iconData, bool withDisplay = false);
 void displaySensorData(const float sensorData, const uint8_t x = 0, const uint8_t y = 0, bool callDisplay = true);
 void showTemperatureLabels(bool withDisplay = true);
 void timerIsr();
@@ -166,13 +197,9 @@ void loop(void) {
     }
     uint32_t startTime = millis();
 
-    // Show a message saying data is being uploaded.
+    // Show an icon indicating data is being uploaded.
     // TODO: replace this with an icon.
-    display.clearDisplay();
-    memset(textBuffer, 0, bufferLength);
-    sprintf(textBuffer, "Uploading data...");
-    writeToScreen(textBuffer);
-    display.display();
+    drawIcon(uploadingIconBmp, true);
 
     // Send data to server.
     uint16_t responseCode = uploadData(temperatureHistory, historyLength);
@@ -182,18 +209,24 @@ void loop(void) {
     timestamp += ((millis() - startTime) / 1000);
     timer.attach_ms(updateFrequency, timerIsr);
 
+    display.display();
+
     if (responseCode >= 200 && responseCode < 300) {
       // If the upload succeeds (20x response), clear history.
       for (uint8_t i = 0; i < historyLength; i++) {
         clearTemperature(&temperatureHistory[i]);
       }
       historyCounter = 0;
+      
+      // Hide the Upload icon.
+      drawIcon(emptyIconBmp, false);
     } else {
-      // Otherwise, if it fails, put a message on the screen.
-      sprintf(textBuffer, "Failed to send\ndata: %d", responseCode);
-      writeToScreen(textBuffer);
-      display.display();
+      // Otherwise, if it fails, display the failed icon.
+      drawIcon(failedIconBmp, false);
     }
+
+    // Whatever happens above, call the `display()` command.
+    display.display();
 
     // If we are at the limit of the storage, remove the oldest data, and shuffle the
     // other data points back. This should leave 1 space at the end of the storage
@@ -368,6 +401,20 @@ void writeToScreen(const char* text, const uint8_t x, const uint8_t y) {
     }
 
     display.print(text[i]);
+  }
+}
+
+void drawIcon(const unsigned char* iconData, bool withDisplay) {
+  display.drawBitmap(
+    (display.width()  - iconWidth ), // X
+    0,                               // Y 
+    iconData,                        // Bitmap
+    iconWidth,                       // Bitmap width
+    iconHeight,                      // Bitmap height
+    1);                              // Colour
+      
+  if (withDisplay) {
+    display.display();
   }
 }
 
