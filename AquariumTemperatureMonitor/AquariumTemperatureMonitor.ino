@@ -35,8 +35,11 @@ const uint8_t screenHeight = 32; // OLED display height, in pixels
 const uint8_t oledReset = LED_BUILTIN; // Reset pin # (or -1 if sharing Arduino reset pin). Use LED_BUILTIN for NodeMCU applications!!
 Adafruit_SSD1306 display(screenWidth, screenHeight, &Wire, oledReset);
 
+// Text storage
 const uint8_t bufferLength = 50;
 char textBuffer[bufferLength];
+
+// Temperature- and reading-related variables
 volatile Temperature currentTemperature = {0.0, 0.0, 0};
 volatile uint8_t historyTimerCounter = 0;
 volatile uint8_t historyCounter = 0;
@@ -46,6 +49,7 @@ const uint8_t maxHistoryLength = 100; // Store a maximum of 100 readings before 
 // New set of data every ([timeToTakeReading] * [historyLength]) seconds.
 Temperature temperatureHistory[historyLength];
 
+// Time-related variables
 const uint16_t oneHour = 3600; // 60 secs * 60 mins
 const uint32_t timestamp24hours = oneHour * 24; // 60 secs * 60 mins * 24 hours
 volatile time_t timestamp = 0;
