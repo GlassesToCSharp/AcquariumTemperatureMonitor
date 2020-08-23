@@ -32,7 +32,7 @@ volatile bool updateDisplayData = false;
 // Setup screen
 const uint8_t screenWidth = 128; // OLED display width, in pixels
 const uint8_t screenHeight = 32; // OLED display height, in pixels
-const uint8_t oledReset = LED_BUILTIN; // Reset pin # (or -1 if sharing Arduino reset pin). Use LED_BUILTIN for NodeMCU applications!!
+const uint8_t oledReset = -1;// LED_BUILTIN; // Reset pin # (or -1 if sharing Arduino reset pin). Use LED_BUILTIN for NodeMCU applications!!
 Adafruit_SSD1306 display(screenWidth, screenHeight, &Wire, oledReset);
 
 // Text storage
