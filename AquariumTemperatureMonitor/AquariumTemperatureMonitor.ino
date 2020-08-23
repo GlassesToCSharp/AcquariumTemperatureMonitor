@@ -304,6 +304,9 @@ void setupScreen() {
 
   display.clearDisplay();
 
+  // Turn display 180 degrees.
+  display.setRotation(2);
+
   // Draw a single pixel in white
   display.drawPixel(10, 10, WHITE);
   display.display();
